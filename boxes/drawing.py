@@ -15,6 +15,19 @@ PADDING = 10
 RANDOMIZE_COLORS = False  # enable to ease check for continuity of paths
 
 
+def reorder_attributes(root) -> None:
+    """
+    Source: https://docs.python.org/3/library/xml.etree.elementtree.html#xml.etree.ElementTree.Element.remove
+    """
+    for el in root.iter():
+        attrib = el.attrib
+        if len(attrib) > 1:
+            # adjust attribute order, e.g. by sorting
+            attribs = sorted(attrib.items())
+            attrib.clear()
+            attrib.update(attribs)
+
+
 def points_equal(x1, y1, x2, y2):
     return abs(x1 - x2) < EPS and abs(y1 - y2) < EPS
 
@@ -577,7 +590,9 @@ Creation date: {date}
                     t.set("stroke-width", f'{path.params["lw"]:.2f}')
                     t.tail = "\n  "
             t.tail = "\n"
-        tree.write(open(self._fname, "wb"), encoding="utf-8", xml_declaration=True, method="xml")
+        reorder_attributes(tree)
+        with open(self._fname, "wb") as f:
+            tree.write(f, encoding="utf-8", xml_declaration=True, method="xml")
 
 class PSSurface(Surface):
 
@@ -685,7 +700,7 @@ class PSSurface(Surface):
                     elif C == "T":
                         m, text, params = c[3:]
                         tm = " ".join(f"{m[i]:.3f}" for i in (0, 3, 1, 4, 2, 5))
-                        text = text.replace("(", "r\(").replace(")", r"\)")
+                        text = text.replace("(", r"\(").replace(")", r"\)")
                         color = " ".join(f"{c:.2f}" for c in params["rgb"])
                         align = params.get('align', 'left')
                         f.write(f"/{self.fonts[params['ff']]}-Latin1 findfont\n")
@@ -981,7 +996,9 @@ class LBRN2Surface(Surface):
         pl.tail = "\n"
 
         if self.dbg: print ("5", num)
-        tree.write(open(self._fname, "wb"), encoding="utf-8", xml_declaration=True, method="xml")
+        with open(self._fname, "wb") as f:
+            tree.write(f, encoding="utf-8", xml_declaration=True, method="xml")
+
 from random import random
 
 
