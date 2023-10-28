@@ -39,6 +39,7 @@ from boxes import parts
 from boxes import pulley
 from boxes import svgutil
 from boxes.Color import *
+from boxes.vectors import kerf
 
 import qrcode
 from boxes.qrcode_factory import BoxesQrCodeFactory
@@ -201,13 +202,13 @@ class ArgparseEdgeType:
         options = "\n".join(
             """<option value="%s"%s>%s</option>""" %
              (e, ' selected="selected"' if e == default else "",
-              translate("%s %s" % (e, self.names.get(e, "")))) for e in self.edges)
-        return """<select name="%s" id="%s" aria-labeledby="%s %s" size="1">\n%s</select>\n""" % (name,  name, name+"_id", name+"_description", options)
+              translate("{} {}".format(e, self.names.get(e, "")))) for e in self.edges)
+        return """<select name="{}" id="{}" aria-labeledby="{} {}" size="1">\n{}</select>\n""".format(name,  name, name+"_id", name+"_description", options)
 
     def inx(self, name, viewname, arg):
         return ('        <param name="%s" type="optiongroup" appearance="combo" gui-text="%s" gui-description=%s>\n' %
                 (name, viewname, quoteattr(arg.help or "")) +
-                ''.join('            <option value="%s">%s %s</option>\n' % (
+                ''.join('            <option value="{}">{} {}</option>\n'.format(
                     e, e, self.names.get(e, ""))
                          for e in self.edges) +
                 '      </param>\n')
@@ -312,6 +313,9 @@ class Boxes:
             "cli_short" : "",
         }
 
+        # Dummy attribute for static analytic tools. Will be overwritten by `argparser` at runtime.
+        self.thickness: float = 0.0
+
         self.argparser._action_groups[1].title = self.__class__.__name__ + " Settings"
         defaultgroup = self.argparser.add_argument_group(
                         "Default Settings")
@@ -402,10 +406,10 @@ class Boxes:
             self.move(self.reference, 10, "up", before=True)
             self.ctx.rectangle(0, 0, self.reference, 10)
             if self.reference < 80:
-                self.text("%.fmm, burn:%.2fmm" % (self.reference , self.burn), self.reference + 5, 5,
+                self.text(f"{self.reference:.2f}mm, burn:{self.burn:.2f}mm", self.reference + 5, 5,
                           fontsize=8, align="middle left", color=Color.ANNOTATIONS)
             else:
-                self.text("%.fmm, burn:%.2fmm" % (self.reference , self.burn), self.reference / 2.0, 5,
+                self.text(f"{self.reference:.2f}mm, burn:{self.burn:.2f}mm", self.reference / 2.0, 5,
                           fontsize=8, align="middle center", color=Color.ANNOTATIONS)
             self.move(self.reference, 10, "up")
             if self.qr_code:
@@ -1557,6 +1561,24 @@ class Boxes:
                           y * 0.5 * holedistance,
                           0.5 * diameter)
 
+    def drawPoints(self, lines, kerfdir=1, close=True):
+
+        if not lines:
+            return
+
+        if kerfdir != 0:
+            lines = kerf(lines, self.burn*kerfdir, closed=close)
+
+        self.ctx.save()
+        self.ctx.move_to(*lines[0])
+
+        for x, y in lines[1:]:
+            self.ctx.line_to(x, y)
+
+        if close:
+            self.ctx.line_to(*lines[0])
+        self.ctx.restore()
+
     def qrcode(self, content, box_size=1.0, color=Color.ETCHING, move=None):
         q = qrcode.QRCode(image_factory=BoxesQrCodeFactory, box_size=box_size*10)
         q.add_data(content)
@@ -2505,7 +2527,7 @@ class Boxes:
         if num > 1:
             width = 2*width - x + r - self.spacing
         dx = width - x - edges[1].spacing() - self.spacing / 2
-        dy = edges[0].spacing() + self.spacing / 2
+        dy = edges[0].margin() + self.spacing / 2
 
         overallwidth = width * (num // 2 + num % 2) - self.spacing
         overallheight = height - self.spacing
@@ -2534,6 +2556,7 @@ class Boxes:
             edges[2](((x-r)**2+(y-r)**2)**0.5)
             self.step(-edges[2].endwidth())
             self.corner(90-alpha, r)
+            self.edge(edges[0].startwidth())
             self.corner(90)
             self.ctx.stroke()
 
